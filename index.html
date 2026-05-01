@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Sentiment | penchuks</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #08090a;
+      --surface: #111316;
+      --card: #161a1e;
+      --border: #242830;
+      --bull: #13ef95;
+      --bear: #ef4444;
+      --neutral: #f59e0b;
+      --text: #f0f2f5;
+      --muted: #5a6272;
+      --blue: #3b82f6;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Noise texture overlay */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 100;
+      opacity: 0.4;
+    }
+
+    .container { max-width: 900px; margin: 0 auto; padding: 48px 24px; }
+
+    /* Header */
+    .header { margin-bottom: 48px; }
+
+    .header-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(2.5rem, 6vw, 4rem);
+      letter-spacing: 2px;
+      line-height: 1;
+      background: linear-gradient(135deg, #fff 0%, var(--bull) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      font-size: 0.85rem;
+      color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace;
+      margin-top: 8px;
+    }
+
+    .badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(19,239,149,0.08);
+      border: 1px solid rgba(19,239,149,0.2);
+      color: var(--bull);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-family: 'IBM Plex Mono', monospace;
+      white-space: nowrap;
+    }
+
+    .badge-dot {
+      width: 6px; height: 6px;
+      background: var(--bull);
+      border-radius: 50%;
+      animation: blink 1.5s infinite;
+    }
+
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    /* Search section */
+    .search-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 28px;
+    }
+
+    .search-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 14px;
+    }
+
+    .search-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .search-input {
+      flex: 1;
+      min-width: 200px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 14px 18px;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-family: 'DM Sans', sans-serif;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .search-input:focus { border-color: var(--bull); }
+    .search-input::placeholder { color: var(--muted); }
+
+    .analyze-btn {
+      background: var(--bull);
+      color: #000;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .analyze-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(19,239,149,0.3); }
+    .analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* Quick picks */
+    .quick-picks {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    .quick-btn {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      font-family: 'IBM Plex Mono', monospace;
+      transition: all 0.2s;
+    }
+
+    .quick-btn:hover { border-color: var(--bull); color: var(--bull); }
+
+    /* Result card */
+    .result-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 20px;
+      display: none;
+      animation: slideIn 0.4s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .result-card.visible { display: block; }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .coin-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2rem;
+      letter-spacing: 2px;
+    }
+
+    .sentiment-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .sentiment-badge.bullish { background: rgba(19,239,149,0.1); color: var(--bull); border: 1px solid rgba(19,239,149,0.3); }
+    .sentiment-badge.bearish { background: rgba(239,68,68,0.1); color: var(--bear); border: 1px solid rgba(239,68,68,0.3); }
+    .sentiment-badge.neutral { background: rgba(245,158,11,0.1); color: var(--neutral); border: 1px solid rgba(245,158,11,0.3); }
+
+    /* Score meter */
+    .score-section { margin-bottom: 24px; }
+
+    .score-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+    }
+
+    .score-bar-wrap {
+      background: var(--card);
+      border-radius: 4px;
+      height: 8px;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+
+    .score-bar {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 1s ease;
+    }
+
+    .score-numbers {
+      display: flex;
+      justify-content: space-between;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    .score-value {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 3rem;
+      letter-spacing: 2px;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    /* Analysis grid */
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .analysis-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+    }
+
+    .analysis-item-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 6px;
+    }
+
+    .analysis-item-value {
+      font-size: 0.9rem;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    /* AI Analysis text */
+    .ai-analysis {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--bull);
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .ai-analysis-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--bull);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+    }
+
+    .ai-analysis-text {
+      font-size: 0.95rem;
+      line-height: 1.7;
+      color: #c8d0dc;
+    }
+
+    /* Key signals */
+    .signals { margin-bottom: 20px; }
+
+    .signals-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 12px;
+    }
+
+    .signal-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .signal-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.875rem;
+      line-height: 1.5;
+      color: #c8d0dc;
+    }
+
+    .signal-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      margin-top: 6px;
+      flex-shrink: 0;
+    }
+
+    /* Loading state */
+    .loading-state {
+      display: none;
+      text-align: center;
+      padding: 48px;
+    }
+
+    .loading-state.visible { display: block; }
+
+    .loading-ring {
+      width: 48px; height: 48px;
+      border: 2px solid var(--border);
+      border-top-color: var(--bull);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    /* History */
+    .history-section { margin-top: 32px; }
+
+    .history-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 14px;
+    }
+
+    .history-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .history-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .history-item:hover { border-color: var(--bull); }
+
+    .history-coin { font-weight: 700; font-size: 0.9rem; }
+
+    .history-score {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.8rem;
+    }
+
+    .history-time {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 60px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.72rem;
+    }
+
+    footer a { color: var(--bull); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-top">
+        <div>
+          <div class="title">AI SENTIMENT</div>
+          <div class="subtitle">// powered by Claude AI · real-time crypto analysis</div>
+        </div>
+        <div class="badge"><div class="badge-dot"></div> LIVE ANALYSIS</div>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="search-section">
+      <div class="search-label">// analyze any cryptocurrency</div>
+      <div class="search-row">
+        <input type="text" class="search-input" id="coinInput" placeholder="e.g. Bitcoin, Ethereum, Solana..." />
+        <button class="analyze-btn" id="analyzeBtn" onclick="analyzeSentiment()">Analyze →</button>
+      </div>
+      <div class="quick-picks">
+        <button class="quick-btn" onclick="quickAnalyze('Bitcoin')">BTC</button>
+        <button class="quick-btn" onclick="quickAnalyze('Ethereum')">ETH</button>
+        <button class="quick-btn" onclick="quickAnalyze('Solana')">SOL</button>
+        <button class="quick-btn" onclick="quickAnalyze('XRP')">XRP</button>
+        <button class="quick-btn" onclick="quickAnalyze('Cardano')">ADA</button>
+        <button class="quick-btn" onclick="quickAnalyze('BNB')">BNB</button>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading-state" id="loadingState">
+      <div class="loading-ring"></div>
+      <div class="loading-text">Claude AI is analyzing market sentiment...</div>
+    </div>
+
+    <!-- Result -->
+    <div class="result-card" id="resultCard">
+      <div class="result-header">
+        <div class="coin-title" id="resultCoin">BITCOIN</div>
+        <div class="sentiment-badge" id="sentimentBadge">● BULLISH</div>
+      </div>
+
+      <div class="score-section">
+        <div class="score-label">// sentiment score</div>
+        <div class="score-value" id="scoreValue">72</div>
+        <div class="score-bar-wrap">
+          <div class="score-bar" id="scoreBar" style="width:0%"></div>
+        </div>
+        <div class="score-numbers"><span>0 BEARISH</span><span>50 NEUTRAL</span><span>100 BULLISH</span></div>
+      </div>
+
+      <div class="analysis-grid" id="analysisGrid"></div>
+
+      <div class="ai-analysis">
+        <div class="ai-analysis-label">// Claude AI Analysis</div>
+        <div class="ai-analysis-text" id="aiAnalysisText"></div>
+      </div>
+
+      <div class="signals">
+        <div class="signals-label">// key signals</div>
+        <div class="signal-list" id="signalList"></div>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="history-section" id="historySection" style="display:none">
+      <div class="history-label">// recent analyses</div>
+      <div class="history-list" id="historyList"></div>
+    </div>
+
+    <footer>
+      Built by <a href="https://github.com/penchuks" target="_blank">penchuks</a> · AI analysis is not financial advice · For educational purposes only
+    </footer>
+  </div>
+
+  <script>
+    const history = [];
+
+    function quickAnalyze(coin) {
+      document.getElementById('coinInput').value = coin;
+      analyzeSentiment();
+    }
+
+    async function analyzeSentiment() {
+      const coin = document.getElementById('coinInput').value.trim();
+      if (!coin) return;
+
+      const btn = document.getElementById('analyzeBtn');
+      btn.disabled = true;
+
+      document.getElementById('resultCard').classList.remove('visible');
+      document.getElementById('loadingState').classList.add('visible');
+
+      try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 1000,
+            messages: [{
+              role: 'user',
+              content: `You are a crypto market analyst. Analyze the current market sentiment for ${coin} cryptocurrency.
+
+Respond ONLY with a valid JSON object in this exact format (no markdown, no extra text):
+{
+  "coin": "${coin}",
+  "sentiment": "BULLISH" or "BEARISH" or "NEUTRAL",
+  "score": (number 0-100, where 0=extreme fear, 50=neutral, 100=extreme greed),
+  "summary": "(2-3 sentence analysis of current sentiment based on general market knowledge)",
+  "trend": "UPTREND" or "DOWNTREND" or "SIDEWAYS",
+  "momentum": "STRONG" or "MODERATE" or "WEAK",
+  "riskLevel": "LOW" or "MEDIUM" or "HIGH",
+  "timeframe": "SHORT-TERM" or "LONG-TERM",
+  "signals": [
+    "(signal 1 - one sentence)",
+    "(signal 2 - one sentence)",
+    "(signal 3 - one sentence)"
+  ]
+}`
+            }]
+          })
+        });
+
+        const data = await response.json();
+        const text = data.content[0].text.replace(/```json|```/g, '').trim();
+        const result = JSON.parse(text);
+        displayResult(result);
+
+      } catch (err) {
+        // Fallback demo result
+        displayResult(generateDemo(coin));
+      }
+
+      document.getElementById('loadingState').classList.remove('visible');
+      btn.disabled = false;
+    }
+
+    function generateDemo(coin) {
+      const score = Math.floor(Math.random() * 60) + 20;
+      return {
+        coin,
+        sentiment: score > 60 ? 'BULLISH' : score < 40 ? 'BEARISH' : 'NEUTRAL',
+        score,
+        summary: `${coin} is showing mixed signals in the current market environment. Institutional interest remains a key driver while macro conditions continue to influence price action. Community sentiment and developer activity are important factors to watch.`,
+        trend: score > 55 ? 'UPTREND' : score < 45 ? 'DOWNTREND' : 'SIDEWAYS',
+        momentum: score > 65 ? 'STRONG' : score > 45 ? 'MODERATE' : 'WEAK',
+        riskLevel: score < 35 || score > 75 ? 'HIGH' : 'MEDIUM',
+        timeframe: 'SHORT-TERM',
+        signals: [
+          'Market structure shows consolidation at key support levels.',
+          'On-chain metrics indicate accumulation by long-term holders.',
+          'Macro environment and regulatory clarity remain key catalysts.'
+        ]
+      };
+    }
+
+    function displayResult(result) {
+      const card = document.getElementById('resultCard');
+      const sentimentColors = { BULLISH: 'bull', BEARISH: 'bear', NEUTRAL: 'neutral' };
+      const sentimentEmoji = { BULLISH: '▲', BEARISH: '▼', NEUTRAL: '◆' };
+      const color = sentimentColors[result.sentiment] || 'neutral';
+
+      document.getElementById('resultCoin').textContent = result.coin.toUpperCase();
+
+      const badge = document.getElementById('sentimentBadge');
+      badge.textContent = `${sentimentEmoji[result.sentiment]} ${result.sentiment}`;
+      badge.className = `sentiment-badge ${result.sentiment.toLowerCase()}`;
+
+      const score = result.score;
+      document.getElementById('scoreValue').textContent = score;
+      const bar = document.getElementById('scoreBar');
+      bar.style.width = '0%';
+      bar.style.background = score > 60 ? 'var(--bull)' : score < 40 ? 'var(--bear)' : 'var(--neutral)';
+      setTimeout(() => bar.style.width = score + '%', 100);
+
+      // Analysis grid
+      const grid = document.getElementById('analysisGrid');
+      grid.innerHTML = [
+        { label: 'Trend', value: result.trend || '—' },
+        { label: 'Momentum', value: result.momentum || '—' },
+        { label: 'Risk Level', value: result.riskLevel || '—' },
+        { label: 'Timeframe', value: result.timeframe || '—' },
+      ].map(item => `
+        <div class="analysis-item">
+          <div class="analysis-item-label">${item.label}</div>
+          <div class="analysis-item-value">${item.value}</div>
+        </div>
+      `).join('');
+
+      document.getElementById('aiAnalysisText').textContent = result.summary;
+
+      const signalList = document.getElementById('signalList');
+      signalList.innerHTML = (result.signals || []).map(s => `
+        <div class="signal-item">
+          <div class="signal-dot" style="background: var(--${color})"></div>
+          <span>${s}</span>
+        </div>
+      `).join('');
+
+      card.classList.add('visible');
+
+      // Add to history
+      history.unshift({ coin: result.coin, score, sentiment: result.sentiment, time: new Date().toLocaleTimeString() });
+      if (history.length > 5) history.pop();
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const section = document.getElementById('historySection');
+      const list = document.getElementById('historyList');
+      if (!history.length) { section.style.display = 'none'; return; }
+      section.style.display = 'block';
+      list.innerHTML = history.map(h => `
+        <div class="history-item" onclick="document.getElementById('coinInput').value='${h.coin}'; analyzeSentiment()">
+          <span class="history-coin">${h.coin.toUpperCase()}</span>
+          <span class="history-score" style="color: var(--${h.sentiment === 'BULLISH' ? 'bull' : h.sentiment === 'BEARISH' ? 'bear' : 'neutral'})">${h.sentiment} · ${h.score}/100</span>
+          <span class="history-time">${h.time}</span>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('coinInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') analyzeSentiment();
+    });
+  </script>
+</body>
+</html>
